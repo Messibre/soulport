@@ -16,6 +16,14 @@ export class WorldIdService {
     signal: string;
     merkleRoot?: string;
   }): Promise<WorldIdVerificationResult> {
+    if (!config.worldIdAppId || !config.worldIdAction) {
+      return {
+        success: false,
+        nullifierHash: payload.nullifierHash,
+        reason: "World ID is not configured",
+      };
+    }
+
     const existingNullifier = database
       .prepare(
         "SELECT nullifier_hash FROM worldid_nullifiers WHERE nullifier_hash = ?",
@@ -32,6 +40,7 @@ export class WorldIdService {
 
     const response = await fetch(`${this.apiUrl}/verify`, {
       method: "POST",
+      signal: AbortSignal.timeout(config.externalApiTimeoutMs),
       headers: {
         "Content-Type": "application/json",
       },

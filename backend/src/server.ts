@@ -1,4 +1,5 @@
 import cors from "cors";
+import crypto from "node:crypto";
 import express, {
   type NextFunction,
   type Request,
@@ -25,9 +26,9 @@ app.use(
 app.use(
   express.json({
     limit: "1mb",
-    verify: (request, _response, buffer) => {
-      request.rawBody = buffer.toString("utf8");
-    },
+     (request, _response, buffer) => {
+(request as Request).rawBody = buffer.toString("utf8");
+},
   }),
 );
 app.use(express.urlencoded({ extended: true }));
@@ -40,14 +41,43 @@ app.use(
   }),
 );
 app.use((request, _response, next) => {
+  const requestId = crypto.randomUUID();
+  request.requestId = requestId;
+  _response.setHeader("x-request-id", requestId);
+
   const startedAt = Date.now();
   console.log(
-    `[${new Date().toISOString()}] ${request.method} ${request.originalUrl}`,
+    JSON.stringify({
+      level: "info",
+      timestamp: new Date().toISOString(),
+      event: "request_started",
+      requestId,
+      method: request.method,
+      path: request.originalUrl,
+      ip: request.ip,
+    }),
   );
+
+  const timeout = setTimeout(() => {
+    if (!_response.headersSent) {
+      _response.status(504).json({ error: "Request timeout", requestId });
+    }
+  }, config.requestTimeoutMs);
+
   _response.on("finish", () => {
+    clearTimeout(timeout);
     const elapsedMs = Date.now() - startedAt;
     console.log(
-      `[${new Date().toISOString()}] ${request.method} ${request.originalUrl} -> ${_response.statusCode} (${elapsedMs}ms)`,
+      JSON.stringify({
+        level: "info",
+        timestamp: new Date().toISOString(),
+        event: "request_finished",
+        requestId,
+        method: request.method,
+        path: request.originalUrl,
+        statusCode: _response.statusCode,
+        elapsedMs,
+      }),
     );
   });
   next();
@@ -58,14 +88,31 @@ app.use("/api", createRoutes());
 app.use(
   (
     error: unknown,
-    _request: Request,
+    request: Request,
     response: Response,
     _next: NextFunction,
   ) => {
+    const requestId = request.requestId ?? "unknown";
+    console.error(
+      JSON.stringify({
+        level: "error",
+        timestamp: new Date().toISOString(),
+        event: "request_failed",
+        requestId,
+        path: request.originalUrl,
+        method: request.method,
+        message: error instanceof Error ? error.message : "Unknown error",
+      }),
+    );
+
     const message =
-      error instanceof Error ? error.message : "Internal server error";
-    console.error(error);
-    response.status(500).json({ error: message });
+      config.nodeEnv === "production"
+        ? "Internal server error"
+        : error instanceof Error
+          ? error.message
+          : "Internal server error";
+
+    response.status(500).json({ error: message, requestId });
   },
 );
 

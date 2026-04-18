@@ -1,5 +1,8 @@
 import type { ReviewAnalysis } from "../types.js";
 
+const recentReviewHashes = new Map<string, number>();
+const reviewHashWindowMs = 60 * 60 * 1000;
+
 const suspiciousPhrases = [
   "great project great project",
   "excellent excellent",
@@ -45,6 +48,17 @@ export class FraudDetectionService {
       score -= 10;
       reasons.push("Review is unusually long");
     }
+
+    const reviewHash = normalized;
+    const existingHashTime = recentReviewHashes.get(reviewHash);
+    if (
+      existingHashTime &&
+      Date.now() - existingHashTime < reviewHashWindowMs
+    ) {
+      score -= 30;
+      reasons.push("Duplicate review text detected");
+    }
+    recentReviewHashes.set(reviewHash, Date.now());
 
     for (const phrase of suspiciousPhrases) {
       if (normalized.includes(phrase)) {

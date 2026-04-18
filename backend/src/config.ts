@@ -5,8 +5,10 @@ dotenv.config();
 
 const environmentSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3001),
-  CORS_ORIGIN: z.string().default("http://localhost:3000"),
-  NODE_ENV: z.string().default("development"),
+  CORS_ORIGIN: z.string().min(1).default("http://localhost:3000"),
+  NODE_ENV: z
+    .enum(["development", "test", "production"])
+    .default("development"),
   PINATA_JWT: z.string().optional().default(""),
   PINATA_GATEWAY_URL: z
     .string()
@@ -22,6 +24,9 @@ const environmentSchema = z.object({
   AI_MATCH_LIMIT: z.coerce.number().int().positive().max(100).default(20),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
+  AI_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
+  REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+  EXTERNAL_API_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
 });
 
 const parsedEnvironment = environmentSchema.parse(process.env);
@@ -42,4 +47,7 @@ export const config = {
   aiMatchLimit: parsedEnvironment.AI_MATCH_LIMIT,
   rateLimitWindowMs: parsedEnvironment.RATE_LIMIT_WINDOW_MS,
   rateLimitMax: parsedEnvironment.RATE_LIMIT_MAX,
+  aiRateLimitMax: parsedEnvironment.AI_RATE_LIMIT_MAX,
+  requestTimeoutMs: parsedEnvironment.REQUEST_TIMEOUT_MS,
+  externalApiTimeoutMs: parsedEnvironment.EXTERNAL_API_TIMEOUT_MS,
 } as const;

@@ -9,13 +9,32 @@ export type WalletActivity = {
   valueUsd?: number;
 };
 
+type CachedSkillResult = {
+  expiresAt: number;
+  skills: SkillScore[];
+};
+
+const skillCache = new Map<string, CachedSkillResult>();
+const skillCacheTtlMs = 10 * 60 * 1000;
+
 export class AiSkillService {
   constructor(private readonly rpcUrl = config.alchemyRpcUrl) {}
 
   async verifySkills(address: string): Promise<SkillScore[]> {
-    void address;
+    const cacheKey = address.toLowerCase();
+    const cached = skillCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.skills;
+    }
+
     const activities = await this.fetchWalletActivity(address);
-    return this.classifySkills(activities);
+    const skills = this.classifySkills(activities);
+    skillCache.set(cacheKey, {
+      expiresAt: Date.now() + skillCacheTtlMs,
+      skills,
+    });
+
+    return skills;
   }
 
   async fetchWalletActivity(address: string): Promise<WalletActivity[]> {
@@ -46,6 +65,17 @@ export class AiSkillService {
   }
 
   classifySkills(activities: WalletActivity[]): SkillScore[] {
+    const txCount = activities.length;
+    const hasUniswapV3 = activities.some(
+      (activity) =>
+        `${activity.protocol ?? ""} ${activity.contractName ?? ""}`
+          .toLowerCase()
+          .includes("uniswapv3") ||
+        `${activity.protocol ?? ""} ${activity.contractName ?? ""}`
+          .toLowerCase()
+          .includes("uniswap v3"),
+    );
+
     const normalized = activities.flatMap((activity) => {
       const skills: SkillScore[] = [];
       const protocol =
@@ -107,6 +137,14 @@ export class AiSkillService {
       if (!existing || existing.confidence < skill.confidence) {
         deduped.set(skill.skill, skill);
       }
+    }
+
+    if (txCount > 100 && hasUniswapV3) {
+      deduped.set("DeFi Enthusiast", {
+        skill: "DeFi Enthusiast",
+        confidence: 86,
+        reasons: ["Transaction count above 100", "Interacted with Uniswap V3"],
+      });
     }
 
     return [...deduped.values()].sort(

@@ -136,17 +136,9 @@ export class MatchmakerService {
       ),
     );
 
-    const skillScore =
-      profile.verifiedSkills.reduce(
-        (total, skill) => total + skill.confidence,
-        0,
-      ) / Math.max(profile.verifiedSkills.length, 1);
-    const keywordScore = keywordHits.length * 12;
+    const skillMatchCount = keywordHits.length;
     const score = Math.round(
-      profile.reputationScore * 0.5 +
-        skillScore * 0.35 +
-        keywordScore +
-        profile.sbtMetadataHashes.length * 3,
+      profile.reputationScore * 0.6 + skillMatchCount * 0.4 * 100,
     );
 
     return {
@@ -156,8 +148,8 @@ export class MatchmakerService {
       reputationScore: profile.reputationScore,
       reason:
         keywordHits.length > 0
-          ? `Matched keywords: ${keywordHits.join(", ")}`
-          : "Ranked by verified skills and reputation",
+          ? `matchScore=(0.6*${profile.reputationScore})+(0.4*${skillMatchCount}); matched keywords: ${keywordHits.join(", ")}`
+          : `matchScore=(0.6*${profile.reputationScore})+(0.4*0); ranked by reputation and skill overlap`,
     };
   }
 }
