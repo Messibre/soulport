@@ -1,7 +1,21 @@
 **/node_modules/
+**/.pnpm-store/
 **/dist/
 **/build/
 **/out/
 **/cache/
 **/broadcast/
-.env
+**/coverage/
+**/*.log
+**/.DS_Store
+**/Thumbs.db
+**/.env
+**/.env.*
+!**/.env.example
+
+# Local deployment artifacts
+contracts/deployed.env
+contracts/deployed.json
+
+# Local data artifacts
+backend/data/

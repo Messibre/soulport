@@ -1,5 +1,6 @@
 import cors from "cors";
 import crypto from "node:crypto";
+import { pathToFileURL } from "node:url";
 import express, {
   type NextFunction,
   type Request,
@@ -26,9 +27,9 @@ app.use(
 app.use(
   express.json({
     limit: "1mb",
-     (request, _response, buffer) => {
-(request as Request).rawBody = buffer.toString("utf8");
-},
+    verify: (request, _response, buffer) => {
+      (request as Request).rawBody = buffer.toString("utf8");
+    },
   }),
 );
 app.use(express.urlencoded({ extended: true }));
@@ -116,7 +117,11 @@ app.use(
   },
 );
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+const executedFileUrl = process.argv[1]
+  ? pathToFileURL(process.argv[1]).href
+  : undefined;
+
+if (import.meta.url === executedFileUrl) {
   app.listen(config.port, () => {
     console.log(`SoulPort backend listening on port ${config.port}`);
   });

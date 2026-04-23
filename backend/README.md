@@ -1,40 +1,89 @@
-# Backend
+# SoulPort Backend
 
-SoulPort off-chain API service.
+The backend is the trust boundary of SoulPort. It validates external proofs, coordinates AI-like scoring workflows, persists records, and exposes APIs consumed by the frontend.
 
-## Features
+## Stack
 
-- Express server with CORS, logging, and rate limiting
-- Reclaim proof ingestion and metadata generation
-- World ID verification proxy with nullifier replay protection
-- AI skill verification, fraud scoring, and freelancer matching
-- SQLite persistence for attestations, proofs, scores, and matches
+- Node.js + TypeScript
+- Express 5
+- Better SQLite3
+- Zod configuration validation
+- Rate limiting + security middleware (Helmet, CORS)
 
-## API Endpoints
+## Core Responsibilities
 
-- GET /api/health: Service health check
-- POST /api/reclaim/proof: Receive and verify Reclaim proof, generate metadata, upload to IPFS
-- POST /api/worldid/verify: Server-side World ID verification with replay prevention
-- GET /api/ai/verify-skills/:address: Rule-based skill verification and confidence scores
-- POST /api/ai/analyze-review: Review credibility scoring and fraud flagging
-- POST /api/ai/match: Match freelancers to a job description
-- GET /api/metadata/:hash: Fetch metadata from configured IPFS gateway
+- Accept and verify Reclaim-style proof payloads
+- Generate and upload SBT metadata to IPFS via Pinata
+- Verify World ID proofs server-side and prevent nullifier replay
+- Serve AI-assisted endpoints for skill scoring, review fraud scoring, and project matching
+- Maintain normalized local records for users, proofs, matches, and attestations
 
-## Security Controls
+## API Summary
 
-- Environment variables are validated at startup using Zod
-- CORS is restricted by CORS_ORIGIN
-- Helmet security headers are enabled
-- Global and AI-specific rate limits are enforced
-- Request IDs and structured logs are emitted for tracing
-- Request and external API timeouts are configured
-- Reclaim webhook payloads use signature verification
-- World ID verification is server-side and prevents nullifier replay
-- SQL writes use prepared statements
-- Errors are sanitized in production mode
+- `GET /api/health`
+- `POST /api/reclaim/proof`
+- `POST /api/worldid/verify`
+- `GET /api/ai/verify-skills/:address`
+- `POST /api/ai/analyze-review`
+- `POST /api/ai/match`
+- `GET /api/metadata/:hash`
 
-## Development
+## Setup
 
 1. Copy `.env.example` to `.env`
-2. Install dependencies with `npm install`
-3. Run the server with `npm run dev`
+2. Install dependencies
+
+```bash
+npm install
+```
+
+3. Start in development mode
+
+```bash
+npm run dev
+```
+
+4. Build and run production output
+
+```bash
+npm run build
+npm run start
+```
+
+## Environment Variables
+
+Required and high-impact settings:
+
+- `PORT`
+- `CORS_ORIGIN`
+- `PINATA_JWT`
+- `PINATA_GATEWAY_URL`
+- `RECLAIM_WEBHOOK_SECRET`
+- `WORLD_ID_APP_ID`
+- `WORLD_ID_ACTION`
+- `WORLD_ID_API_URL`
+- `ALCHEMY_RPC_URL`
+- `DATABASE_URL`
+- `RATE_LIMIT_WINDOW_MS`
+- `RATE_LIMIT_MAX`
+- `AI_RATE_LIMIT_MAX`
+- `REQUEST_TIMEOUT_MS`
+- `EXTERNAL_API_TIMEOUT_MS`
+
+## Security Considerations
+
+- Keep all secrets in `.env` only; never commit runtime secret files
+- Enforce HTTPS and trusted CORS origins in deployed environments
+- Use strong `RECLAIM_WEBHOOK_SECRET` values and rotate periodically
+- Keep `WORLD_ID_*` configuration consistent between frontend signal and backend verification
+- Audit logs for repeated failed proof attempts and rate-limit abuse
+
+## Data Storage
+
+SQLite schema is initialized automatically on startup in `src/db.ts`.
+
+Local data location defaults to:
+
+- `file:./data/soulport.db`
+
+For production, use a persistent mounted disk path.
