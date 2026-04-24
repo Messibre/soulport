@@ -87,3 +87,31 @@ Local data location defaults to:
 - `file:./data/soulport.db`
 
 For production, use a persistent mounted disk path.
+
+## Deploy on Render
+
+This repository includes a Render Blueprint at `render.yaml` configured for the backend service.
+
+1. Push the repository to GitHub.
+2. In Render, create a new Blueprint instance from the repo root.
+3. Confirm service root is `backend` and the build/start commands are:
+
+```bash
+npm install && npm run build
+npm run start
+```
+
+4. Set required environment variables in Render:
+
+- `CORS_ORIGIN`
+- `PINATA_JWT`
+- `PINATA_GATEWAY_URL`
+- `RECLAIM_WEBHOOK_SECRET`
+- `WORLD_ID_APP_ID`
+- `WORLD_ID_ACTION`
+- `WORLD_ID_API_URL`
+- `ALCHEMY_RPC_URL`
+
+5. Keep the persistent disk mount enabled at `/var/data` so SQLite survives restarts.
+
+Health checks use `GET /api/health`.

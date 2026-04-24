@@ -64,3 +64,31 @@ npm run build
 - Never commit `.env` or any client secret values
 - Treat all user input as untrusted; backend remains the trust boundary
 - Do not expose private API keys in frontend code or env files prefixed with `REACT_APP_`
+
+## Deploy on Vercel
+
+This frontend includes `vercel.json` configured for Create React App static output.
+
+1. Import this repository into Vercel.
+2. Set project root directory to `frontend`.
+3. Confirm build settings:
+
+```bash
+npm install
+npm run build
+```
+
+Output directory: `build`
+
+4. Add required environment variables in Vercel:
+
+- `REACT_APP_API_BASE_URL`
+- `REACT_APP_BASE_SEPOLIA_RPC_URL`
+- `REACT_APP_WALLETCONNECT_PROJECT_ID` (if used)
+- `REACT_APP_SBT_ADDRESS`
+- `REACT_APP_REPUTATION_ORACLE_ADDRESS`
+- `REACT_APP_STAKING_ADDRESS`
+- `REACT_APP_EAS_CONTRACT_ADDRESS`
+- `REACT_APP_EAS_UIDS`
+
+The rewrite rule in `vercel.json` routes all paths to `index.html`, so React Router deep links work in production.
