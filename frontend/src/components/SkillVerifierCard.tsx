@@ -2,7 +2,8 @@ import { useState } from "react";
 import toast from "react-hot-toast";
 import { useAccount } from "wagmi";
 
-import { verifySkills } from "../lib/api";
+import { ApiErrorBox } from "./ApiErrorBox";
+import { getApiErrorDisplay, type ApiErrorDisplay, verifySkills } from "../lib/api";
 
 type Skill = {
   skill: string;
@@ -32,6 +33,7 @@ export function SkillVerifierCard() {
   const { address, isConnected } = useAccount();
   const [loading, setLoading] = useState(false);
   const [skills, setSkills] = useState<Skill[]>([]);
+  const [errorState, setErrorState] = useState<ApiErrorDisplay | null>(null);
 
   const verify = async () => {
     if (!isConnected || !address) {
@@ -39,6 +41,7 @@ export function SkillVerifierCard() {
       return;
     }
 
+    setErrorState(null);
     setLoading(true);
     try {
       const response = await verifySkills(address);
@@ -46,8 +49,10 @@ export function SkillVerifierCard() {
       toast.success("Skill verification complete");
     } catch (error) {
       console.error(error);
+      const displayError = getApiErrorDisplay(error);
       setSkills(demoSkills);
-      toast.error("Using demo skill results (API unavailable)");
+      setErrorState(displayError);
+      toast.error("Showing demo skill results while backend is unavailable");
     } finally {
       setLoading(false);
     }
@@ -81,6 +86,18 @@ export function SkillVerifierCard() {
         >
           {loading ? "Analyzing wallet..." : "Verify My Skills"}
         </button>
+
+        {errorState && (
+          <ApiErrorBox
+            title="Skill verification failed"
+            message={errorState.message}
+            requestId={errorState.requestId}
+            hint={errorState.hint}
+            onRetry={errorState.canRetry ? () => void verify() : undefined}
+            retryDisabled={loading}
+            retryLabel={loading ? "Retrying..." : "Retry skill check"}
+          />
+        )}
 
         <div className="mt-3 space-y-3">
           {skills.map((skill) => (

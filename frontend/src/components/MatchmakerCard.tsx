@@ -1,7 +1,8 @@
 import { FormEvent, useState } from "react";
 import toast from "react-hot-toast";
 
-import { getMatches } from "../lib/api";
+import { ApiErrorBox } from "./ApiErrorBox";
+import { getApiErrorDisplay, getMatches, type ApiErrorDisplay } from "../lib/api";
 
 type Match = {
   address: string;
@@ -20,9 +21,10 @@ export function MatchmakerCard() {
   const [description, setDescription] = useState("");
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(false);
+  const [errorState, setErrorState] = useState<ApiErrorDisplay | null>(null);
 
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
+  const runMatchRequest = async () => {
+    setErrorState(null);
     setLoading(true);
     try {
       const response = await getMatches(`${jobTitle}\n\n${description}`);
@@ -35,11 +37,18 @@ export function MatchmakerCard() {
       toast.success("Top matches generated");
     } catch (error) {
       console.error(error);
+      const displayError = getApiErrorDisplay(error);
       setMatches(demoMatches);
-      toast.error("Using demo matches (API unavailable)");
+      setErrorState(displayError);
+      toast.error("Showing demo matches while backend is unavailable");
     } finally {
       setLoading(false);
     }
+  };
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    await runMatchRequest();
   };
 
   return (
@@ -69,6 +78,18 @@ export function MatchmakerCard() {
             {loading ? "Finding matches..." : "Find Top Matches"}
           </button>
         </form>
+
+        {errorState && (
+          <ApiErrorBox
+            title="Match generation failed"
+            message={errorState.message}
+            requestId={errorState.requestId}
+            hint={errorState.hint}
+            onRetry={errorState.canRetry ? () => void runMatchRequest() : undefined}
+            retryDisabled={loading}
+            retryLabel={loading ? "Retrying..." : "Retry matching"}
+          />
+        )}
 
         {matches.length > 0 && (
           <div className="mt-3 grid gap-2">

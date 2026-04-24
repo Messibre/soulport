@@ -8,6 +8,7 @@ import express, {
 } from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
+import { ZodError } from "zod";
 
 import { config } from "./config.js";
 import { initializeDatabase } from "./db.js";
@@ -112,6 +113,14 @@ app.use(
         : error instanceof Error
           ? error.message
           : "Internal server error";
+
+    if (error instanceof ZodError) {
+      return response.status(400).json({
+        error: "Invalid request payload",
+        details: error.issues,
+        requestId,
+      });
+    }
 
     response.status(500).json({ error: message, requestId });
   },

@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { useAccount } from "wagmi";
 
-import { submitReclaimProof } from "../lib/api";
+import { ApiErrorBox } from "./ApiErrorBox";
+import { getApiErrorDisplay, submitReclaimProof, type ApiErrorDisplay } from "../lib/api";
 
 type ImportWizardModalProps = {
   open: boolean;
@@ -17,6 +18,7 @@ export function ImportWizardModal({ open, onClose }: ImportWizardModalProps) {
   const [platform, setPlatform] = useState(platforms[0]);
   const [busy, setBusy] = useState(false);
   const [metadataHash, setMetadataHash] = useState<string>("");
+  const [errorState, setErrorState] = useState<ApiErrorDisplay | null>(null);
 
   const preview = useMemo(
     () => ({
@@ -44,6 +46,7 @@ export function ImportWizardModal({ open, onClose }: ImportWizardModalProps) {
       return;
     }
 
+    setErrorState(null);
     setBusy(true);
     toast.loading("Sending mint transaction...", { id: "mint" });
     try {
@@ -74,9 +77,11 @@ export function ImportWizardModal({ open, onClose }: ImportWizardModalProps) {
       setStep(1);
     } catch (error) {
       console.error(error);
-      const message =
-        error instanceof Error ? error.message : "Mint flow failed";
-      toast.error(message, { id: "mint" });
+      const displayError = getApiErrorDisplay(error);
+      setErrorState(displayError);
+      toast.error("Mint flow failed. Check the details in the wizard.", {
+        id: "mint",
+      });
     } finally {
       setBusy(false);
     }
@@ -97,6 +102,18 @@ export function ImportWizardModal({ open, onClose }: ImportWizardModalProps) {
         />
 
         <div className="mt-6 space-y-4">
+          {errorState && (
+            <ApiErrorBox
+              title="Credential mint failed"
+              message={errorState.message}
+              requestId={errorState.requestId}
+              hint={errorState.hint}
+              onRetry={errorState.canRetry ? () => void mintSbt() : undefined}
+              retryDisabled={busy}
+              retryLabel={busy ? "Retrying..." : "Retry mint"}
+            />
+          )}
+
           {step === 1 && (
             <div>
               <p className="mb-3">Step 1: Select platform</p>
