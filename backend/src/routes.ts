@@ -29,6 +29,12 @@ export function createRoutes() {
     limit: config.aiRateLimitMax,
     standardHeaders: true,
     legacyHeaders: false,
+    handler: (request, response) => {
+      response.status(429).json({
+        error: "Too many AI requests. Please try again shortly.",
+        requestId: request.requestId,
+      });
+    },
   });
 
   const metadataSchema = z.object({
@@ -102,12 +108,23 @@ export function createRoutes() {
 
   router.post("/reclaim/proof", async (request, response, next) => {
     try {
-      const payload = reclaimProofSchema.parse(
-        request.body,
-      ) as ReclaimProofPayload;
+      const parsedPayload = reclaimProofSchema.safeParse(request.body);
+      if (!parsedPayload.success) {
+        return response.status(400).json({
+          error: "Invalid reclaim proof payload",
+          details: parsedPayload.error.issues,
+          requestId: request.requestId,
+        });
+      }
+
+      const payload = parsedPayload.data as ReclaimProofPayload;
 
       if (!verifyWebhookSignature(payload, request.rawBody)) {
-        return response.status(401).json({ error: "Invalid proof signature" });
+        return response.status(401).json({
+          error: "Invalid proof signature",
+          hint: "Ensure the payload signature matches the webhook secret HMAC",
+          requestId: request.requestId,
+        });
       }
 
       const metadata = metadataSchema.parse({
@@ -164,12 +181,34 @@ export function createRoutes() {
 
   router.post("/worldid/verify", async (request, response, next) => {
     try {
-      const payload = worldIdSchema.parse(
-        request.body,
-      ) as WorldIdVerificationPayload;
+      const parsedPayload = worldIdSchema.safeParse(request.body);
+      if (!parsedPayload.success) {
+        return response.status(400).json({
+          error: "Invalid World ID payload",
+          details: parsedPayload.error.issues,
+          requestId: request.requestId,
+        });
+      }
+
+      const payload = parsedPayload.data as WorldIdVerificationPayload;
 
       const result = await worldIdService.verify(payload);
-      return response.status(result.success ? 200 : 400).json(result);
+      if (result.success) {
+        return response.status(200).json(result);
+      }
+
+      const reason = result.reason ?? "World ID verification failed";
+      const status = reason.includes("not configured")
+        ? 503
+        : reason.includes("already used")
+          ? 409
+          : 400;
+
+      return response.status(status).json({
+        ...result,
+        error: reason,
+        requestId: request.requestId,
+      });
     } catch (error) {
       return next(error);
     }
@@ -180,7 +219,16 @@ export function createRoutes() {
     aiRateLimiter,
     async (request, response, next) => {
       try {
-        const address = addressSchema.parse(request.params.address);
+        const parsedAddress = addressSchema.safeParse(request.params.address);
+        if (!parsedAddress.success) {
+          return response.status(400).json({
+            error: "Invalid wallet address",
+            details: parsedAddress.error.issues,
+            requestId: request.requestId,
+          });
+        }
+
+        const address = parsedAddress.data;
         const skills = await aiSkillService.verifySkills(address);
         const now = new Date().toISOString();
 
@@ -219,7 +267,16 @@ export function createRoutes() {
     aiRateLimiter,
     (request, response, next) => {
       try {
-        const payload = reviewSchema.parse(request.body);
+        const parsedPayload = reviewSchema.safeParse(request.body);
+        if (!parsedPayload.success) {
+          return response.status(400).json({
+            error: "Invalid review analysis payload",
+            details: parsedPayload.error.issues,
+            requestId: request.requestId,
+          });
+        }
+
+        const payload = parsedPayload.data;
 
         const result = fraudDetectionService.analyzeReview(payload.reviewText);
         const now = new Date().toISOString();
@@ -256,7 +313,16 @@ export function createRoutes() {
 
   router.post("/ai/match", aiRateLimiter, async (request, response, next) => {
     try {
-      const payload = matchSchema.parse(request.body);
+      const parsedPayload = matchSchema.safeParse(request.body);
+      if (!parsedPayload.success) {
+        return response.status(400).json({
+          error: "Invalid matchmaker payload",
+          details: parsedPayload.error.issues,
+          requestId: request.requestId,
+        });
+      }
+
+      const payload = parsedPayload.data;
       const jobDescription = payload.jobDescription;
 
       const matches = await matchmakerService.matchFreelancers(jobDescription);
@@ -285,22 +351,46 @@ export function createRoutes() {
     }
   });
 
-  router.get("/metadata/:hash", async (request, response) => {
-    const metadataHash = metadataHashSchema.parse(request.params.hash);
-    const gatewayBase = config.pinataGatewayUrl.endsWith("/")
-      ? config.pinataGatewayUrl
-      : `${config.pinataGatewayUrl}/`;
-    const gatewayUrl = `${gatewayBase}${metadataHash}`;
-    const pinataResponse = await fetch(gatewayUrl, {
-      signal: AbortSignal.timeout(config.externalApiTimeoutMs),
-    });
+  router.get("/metadata/:hash", async (request, response, next) => {
+    try {
+      const parsedHash = metadataHashSchema.safeParse(request.params.hash);
+      if (!parsedHash.success) {
+        return response.status(400).json({
+          error: "Invalid metadata hash",
+          details: parsedHash.error.issues,
+          requestId: request.requestId,
+        });
+      }
 
-    if (!pinataResponse.ok) {
-      return response.status(404).json({ error: "Metadata not found" });
+      const metadataHash = parsedHash.data;
+      const gatewayBase = config.pinataGatewayUrl.endsWith("/")
+        ? config.pinataGatewayUrl
+        : `${config.pinataGatewayUrl}/`;
+      const gatewayUrl = `${gatewayBase}${metadataHash}`;
+      const pinataResponse = await fetch(gatewayUrl, {
+        signal: AbortSignal.timeout(config.externalApiTimeoutMs),
+      });
+
+      if (!pinataResponse.ok) {
+        const status = pinataResponse.status >= 500 ? 502 : 404;
+        return response.status(status).json({
+          error:
+            status === 502
+              ? "Metadata gateway is currently unavailable"
+              : "Metadata not found",
+          requestId: request.requestId,
+        });
+      }
+
+      const metadata = await pinataResponse.json();
+      return response.json({ hash: metadataHash, metadata });
+    } catch (error) {
+      return next(error);
     }
+  });
 
-    const metadata = await pinataResponse.json();
-    return response.json({ hash: metadataHash, metadata });
+  router.use((_request, response) => {
+    response.status(404).json({ error: "API route not found" });
   });
 
   return router;

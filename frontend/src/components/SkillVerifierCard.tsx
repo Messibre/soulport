@@ -3,7 +3,11 @@ import toast from "react-hot-toast";
 import { useAccount } from "wagmi";
 
 import { ApiErrorBox } from "./ApiErrorBox";
-import { getApiErrorDisplay, type ApiErrorDisplay, verifySkills } from "../lib/api";
+import {
+  getApiErrorDisplay,
+  type ApiErrorDisplay,
+  verifySkills,
+} from "../lib/api";
 
 type Skill = {
   skill: string;

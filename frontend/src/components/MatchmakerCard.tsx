@@ -2,7 +2,11 @@ import { FormEvent, useState } from "react";
 import toast from "react-hot-toast";
 
 import { ApiErrorBox } from "./ApiErrorBox";
-import { getApiErrorDisplay, getMatches, type ApiErrorDisplay } from "../lib/api";
+import {
+  getApiErrorDisplay,
+  getMatches,
+  type ApiErrorDisplay,
+} from "../lib/api";
 
 type Match = {
   address: string;
@@ -85,7 +89,9 @@ export function MatchmakerCard() {
             message={errorState.message}
             requestId={errorState.requestId}
             hint={errorState.hint}
-            onRetry={errorState.canRetry ? () => void runMatchRequest() : undefined}
+            onRetry={
+              errorState.canRetry ? () => void runMatchRequest() : undefined
+            }
             retryDisabled={loading}
             retryLabel={loading ? "Retrying..." : "Retry matching"}
           />

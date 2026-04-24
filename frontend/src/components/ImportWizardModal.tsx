@@ -3,7 +3,11 @@ import toast from "react-hot-toast";
 import { useAccount } from "wagmi";
 
 import { ApiErrorBox } from "./ApiErrorBox";
-import { getApiErrorDisplay, submitReclaimProof, type ApiErrorDisplay } from "../lib/api";
+import {
+  getApiErrorDisplay,
+  submitReclaimProof,
+  type ApiErrorDisplay,
+} from "../lib/api";
 
 type ImportWizardModalProps = {
   open: boolean;

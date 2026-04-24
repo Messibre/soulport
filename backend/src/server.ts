@@ -40,6 +40,12 @@ app.use(
     limit: config.rateLimitMax,
     standardHeaders: true,
     legacyHeaders: false,
+    handler: (request, response) => {
+      response.status(429).json({
+        error: "Too many requests. Please retry in a moment.",
+        requestId: request.requestId,
+      });
+    },
   }),
 );
 app.use((request, _response, next) => {
@@ -114,6 +120,16 @@ app.use(
           ? error.message
           : "Internal server error";
 
+    if (
+      error instanceof SyntaxError &&
+      "body" in (error as unknown as { body?: unknown })
+    ) {
+      return response.status(400).json({
+        error: "Invalid JSON body",
+        requestId,
+      });
+    }
+
     if (error instanceof ZodError) {
       return response.status(400).json({
         error: "Invalid request payload",
@@ -122,7 +138,15 @@ app.use(
       });
     }
 
-    response.status(500).json({ error: message, requestId });
+    const errorName = error instanceof Error ? error.name : "Unknown";
+    if (errorName === "AbortError" || errorName === "TimeoutError") {
+      return response.status(504).json({
+        error: "Upstream request timed out",
+        requestId,
+      });
+    }
+
+    return response.status(500).json({ error: message, requestId });
   },
 );
 
